@@ -1,0 +1,894 @@
+---
+output:
+  html_document: default
+  pdf_document: default
+---
+Author : Farhad Ahmad Qureshi
+========================================================
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, packages}
+# Loading the required packages
+library(GGally)
+library(ggplot2)
+library(RColorBrewer)
+library(ggplot2)
+```
+
+```{r echo=FALSE, Load_the_Data}
+pld <- read.csv('prosperLoanData.csv') # Loading the data set
+```
+
+#Introduction
+
+  Prosper is a marketplace lending platform. Borrower's send requests for loans and investors then decide how much to lend. Borrower rates are usually lesser than financial institutions such as banks and multiple investors contribute towards the loan reducing the risk of impacting only one investor if the borrower defaults.  
+
+## Dataset
+
+  This data set contains 113,937 loans with 81 variables on each loan, including loan amount, borrower rate (or interest rate), current loan status, borrower income, borrower employment status, borrower credit history, and the latest payment information.
+
+
+  The reason I selected this dataset was because I never worked on a data set like this and I wanted to see what factors lead borrowers to become defaulters and what factors lead an investor to contribute towards a loan. I will first explore the dataset and see distribution of a few selected variables that I found interesting.
+This will be the univariate analysis. Following this, I will explore relation of these variables with
+being a default non-default (good) borrower. This will be the bivariate analysis. At the end I will use these plots to to add more information in the multivariate plots section.
+
+
+### The exploratory analysis will begin with the univariate plots using the following variables:
+
+
+```{r echo=FALSE, Univariate_Plots,warning=FALSE}
+# Creating a new variable for loan creation year from date variable.
+pld$ListingCreationDate<-substring(pld$ListingCreationDate,1,4)
+# Subset the dataset with the selected variables for analysis
+my_vars <- c("ListingCreationDate", "Term","LoanStatus","BorrowerAPR",
+"BorrowerState","Occupation","EmploymentStatus","IsBorrowerHomeowner",
+"CreditScoreRangeUpper", "InquiriesLast6Months","DebtToIncomeRatio",
+"IncomeRange","StatedMonthlyIncome","LoanOriginalAmount",
+"LP_CustomerPayments","Investors","LoanMonthsSinceOrigination")
+plds <-pld[my_vars]  
+
+```
+
+## Distribution of variables selected for analysis.
+
+```{r echo = FALSE, warning = FALSE}
+
+str(plds)
+
+```
+
+There are 6 factor variables 2 character variables and rest being numerical. 
+
+
+# Univariate Plots Section 
+
+## Loan Status.
+
+
+```{r echo=FALSE, fig.width = 8, fig.height = 6, warning=FALSE}
+# Flipping the x axis since we have a lot statuses so in order to improve
+# readability the plot has loan status on y axis and count on x.
+ggplot(aes(x=reorder(LoanStatus, LoanStatus, function (x) length(x))),
+       data = plds) + geom_bar() + coord_flip()
+
+```
+
+Distribution of the loan status. Majority are current borrowers. A good bit of borrowers have completed their terms. However there is a good amount of borrowers who have been marked as charged off. So after doing some reserach charged off is basically a defaulter in a really worst condition. In fact, all except current, completed and cancelled will be made into the 'Good' category and rest will be put in to the default category for analysis.
+
+
+
+### Checking the distribution of default and good standing borrowers:
+
+
+```{r echo=FALSE,warning=FALSE}
+# creatig a new variable for borrowers with default and good standing.
+plds$Standing <- ifelse(plds$LoanStatus == 'Cancelled'
+                        | plds$LoanStatus == 'Completed'
+                        | plds$LoanStatus == 'Current'
+                        | plds$LoanStatus == 'FinalPaymentInProgress'
+                        ,'Good','Default')
+```
+
+
+```{r echo=FALSE,warning=FALSE}
+ggplot(aes(Standing),data = plds) + geom_histogram(stat='count') 
+# Borrower standing (Good vs Default)
+
+```
+
+> Defaulters are usually less than in number from those in Good standing (including those who have completed their loans).
+
+
+## Creation Date
+```{r echo=FALSE,warning=FALSE}
+ggplot(aes(ListingCreationDate),data = plds) + geom_histogram(stat='count')
+
+# Histogram for listing creating year
+
+```
+
+Number of loans were maximum in 2013. There is a reduction in loans in 2008 - 2011. It might be due to the global financial crisis. This will further be investigated to come to any conclusion.
+
+
+##Loan Term
+
+```{r echo=FALSE,warning=FALSE}
+ggplot(aes(Term),data = plds) + geom_histogram()
+```
+
+Majority of the borrowers are given loan for a term of 36 months. The second highest being the 60 months term. 
+
+
+
+## Borrower APR 
+
+This is used instead of Borrower rate since it contains any additional service charges as well.
+
+```{r echo=FALSE,warning=FALSE}
+ggplot(aes(x=BorrowerAPR),data=plds) + geom_histogram(binwidth = 0.005)
+
+```
+
+```{r echo=FALSE,warning=FALSE}
+summary(plds$BorrowerAPR)
+```
+The lowest of Borrower's APR is 0.00653 and the maximum is upto 0.51. The typical range of this is 
+between 0.05 to 0.38
+
+
+## LoanMonthsSinceOrigination
+
+```{r echo=FALSE,warning=FALSE}
+ggplot(aes(x=LoanMonthsSinceOrigination),data=plds) + 
+  geom_histogram(binwidth=10)
+# Adusting the bindwidth with binwidth parameter
+```
+
+  Distribution of loans with respect to the months since they were originated.Most loans are between 0 - 25. This will be an interesting feature later to investigate default borrowers. 
+
+
+## Borrower State
+
+I was interested to see the demographics for each state and if there are any states with high number of borrowers.
+
+```{r echo=FALSE, fig.width = 8, fig.height = 10, warning=FALSE}
+# Flipping the x axis since we have a lot of states (52) so in order to improve
+# readability the plot has states on y axis and count on x.
+ggplot(aes(x=reorder(BorrowerState, BorrowerState, function (x) length(x))),
+       data = plds) + geom_bar() + coord_flip()
+
+```
+
+ Majority of loans are from California. This might be because of its large population. This causes the plot to be
+right skewed so we will take this into consideration later and log transform the y axis.7 States have count more than or equal to 5000
+
+## Employment Status
+
+```{r echo=FALSE, fig.width = 10, fig.height = 4, warning = FALSE}
+ggplot(aes(x=EmploymentStatus), data = plds) + geom_histogram(stat="count")
+```
+
+Majority of the loans go to the the employed classes. 
+
+## IsBorrowerHomeowner
+
+```{r echo=FALSE, fig.width=3, fig.height=4,warning=FALSE}
+ggplot(aes(x=IsBorrowerHomeowner),data = plds) + geom_histogram(stat="count")
+```
+
+  Doesnt really matter if a borrower owns a house or not count is almost the same for both.
+
+## Investors
+
+```{r echo=FALSE,warning=FALSE}
+ggplot(aes(x=Investors), data = plds) + geom_histogram()+ 
+  ylim(0,10000)
+
+```
+
+  Distribution of investors majority being under 100 but it would be interesting to see the loan amount and how much investors contribute.
+
+```{r echo=FALSE,warning=FALSE}
+summary(pld$Investors)
+```
+
+Median investors for the data is 44. 
+
+
+## CreditScoreRangeUpper
+
+```{r echo=FALSE,warning=FALSE}
+
+ggplot(aes(x=CreditScoreRangeUpper), data = plds) + geom_histogram() 
+
+```
+
+  As expected most borrowers have high scores (peak around 700). 
+
+```{r echo=FALSE,warning=FALSE}
+summary(plds$CreditScoreRangeUpper)
+
+```
+  For upper range  we see median rating is in the Good category as per the experience or FICO rating used by Prosper.
+
+
+## InquiriesLast6Months
+
+```{r echo=FALSE,warning=FALSE}
+ggplot(aes(x=InquiriesLast6Months), data = plds) + geom_histogram(binwidth=0.5)+ 
+  scale_x_continuous(limits = c(0,30), breaks = seq(0,30,1))
+
+# Setting the limit to 30 inquiries only and seeing it with a binwidth of 0.5
+
+```
+
+  Most borrowers had inquiries under 5 which as mentioned on their website is one of the criteria to give loans but there are outliers here as well.
+
+
+## DebtToIncomeRatio (DTI)
+
+```{r echo=FALSE,warning=FALSE}
+ggplot(aes(x=DebtToIncomeRatio), data = plds) + geom_histogram() +
+  scale_x_continuous(limits = c(0,2))
+
+# Checking the DTI ratio till a max of 2 since the rest seems to be outliers
+
+```
+
+Borrowers in majority have this below 0.5 which means their income is more than their debt. There are outliers so only including till 1.
+
+Debt to income ratio of majority of the masses s between 0 to 0.5 which is one of the criteria they follow to lend. However I do see outliers!
+
+## IncomeRange
+
+```{r echo=FALSE, fig.width = 10, fig.height = 4}
+ggplot(aes(x=IncomeRange),data=plds) + geom_histogram(stat="count")
+# Adjusting the fig width and height to improve dimensionality
+```
+
+
+Most of the loans given are for borrower's within the range of 25k - 100k. 
+
+## StatedMonthlyIncome
+
+```{r echo=FALSE,warning=FALSE}
+ggplot(aes(x=StatedMonthlyIncome),data=plds) + geom_histogram() +
+  scale_x_continuous(limits = c(0,10000))
+# Setting the limits to 10,000 since all above this seems outliers
+```
+
+There were outliers so checking monthly payments withing $0 - 10000 only.
+
+## LoanOriginalAmount
+
+```{r echo=FALSE,warning=FALSE}
+ggplot(aes(x=LoanOriginalAmount),data=plds) + geom_histogram(binwidth = 300)
+
+# Binwidth adjusted
+```
+
+  Loan amount varies between 0 to 30k. We can check the categories of each loan as well if we need to do further analysis.
+
+
+
+```{r echo=FALSE,warning=FALSE}
+summary(plds$LoanOriginalAmount)
+```
+
+Minimum amount lent is 1000 and max is 35000. 
+
+
+## LP_CustomerPayments
+
+```{r echo=FALSE,warning=FALSE}
+ggplot(aes(x=LP_CustomerPayments), data = plds) + geom_histogram()
+```
+
+  Right skewed distribution. Most payments are between 0 to 10000. A summary of the payments made by borrowers:
+
+```{r echo=FALSE,warning=FALSE}
+summary(plds$LP_CustomerPayments)
+```
+
+## Occupation
+
+```{r echo=FALSE, fig.width = 8, fig.height = 10, warning=FALSE}
+# Flipping the x axis since we have a lot occupations so in order to improve
+# readability the plot has occupation on y axis and count on x.
+ggplot(aes(x=reorder(Occupation, Occupation, function (x) length(x))),
+       data = plds) + geom_bar() + coord_flip()
+
+```
+
+Occupation by loan count. 
+
+# Summary of Univariate Analysis.
+
+
+
+### What is/are the main feature(s) of interest in your dataset?
+
+  The main feature of interest is the LoanStatus variable that contains following categories:
+
+Cancelled  
+
+Chargedoff 
+
+Completed 
+
+Current             
+
+Defaulted          
+
+FinalPaymentInProgress 
+
+Past Due ( 120 days)   
+
+Past Due (1-15 days)    
+
+Past Due (16-30 days) 
+
+Past Due (31-60 days)  
+
+Past Due (61-90 days)     
+
+Past Due (91-120 days) 
+
+
+
+It will be important to see what causes a borrower to become a defaulter. After doing some research the categorieschargedoff along with defaulted and past dues are all considered to be the defaulted borrowers and will be referred to as defaulters from now.
+  
+The main feature of interest would therefore be to investigate the variables associated with being a defaulter.
+
+The main variables that will be used to investigate this are. 
+  
+  Term
+  
+  BorrowerAPR
+  
+  InquiriesLast6Months
+  
+  DebtToIncomeRatio
+  
+  IncomeRange
+  
+  EmploymentStatus
+  
+  CreditScoreRangeUpper
+  
+  StatedMonthlyIncome
+  
+  ListingCreationDate
+  
+  
+
+### What other features in the dataset do you think will help support your 
+
+  The following will be used to see other trends within the dataset such as investors strategies to lend to borrowers and payments made by borrowers as compared to the original loan amount. 
+
+  BorrowerState
+  
+  LP_CustomerPayments
+  
+  Investors
+  
+  Occupation
+  
+  IsBorrowerHomeowner
+  
+  LoanOriginalAmount
+  
+  LoanMonthsSinceOrigination
+  
+### Did you create any new variables from existing variables in the dataset?
+
+  A new variable is created for the Default borrower using the LoanStatus variable.Listing creation year variable is also created from the original date format.
+
+
+### Of the features you investigated, were there any unusual distributions? \
+  Most of the loans given are for borrower's within the range of 25k - 100k. However I do see a few borrower's
+who have 0$ income. Not sure what that means but I also see a few in not employed (might be students).
+Most of the loans are given for 36 months. 
+
+
+
+
+# Bivariate Plots Section
+
+
+## ListingCreationDate vs Standing
+
+```{r echo=FALSE,warning=FALSE}
+ggplot(aes(x=ListingCreationDate,color = Standing,fill=Standing),data = plds) + 
+  geom_histogram(position='dodge',stat="count") 
+```
+
+  The number of loans are low during 2005 - 20111. Defaulters are mostly in 2007, the year before the financial crisis. Maybe they borrowed on a certain amount and during crisis were not able to pay their loans back. So, financial crisis might be a reason for the skewness seen here in defaulters and should be taken into account.
+
+
+## BorrowerAPR vs Standing
+
+```{r echo=FALSE, Bivariate_Plots}
+
+ggplot(aes(x=BorrowerAPR,color = Standing,fill=Standing),data = plds) +
+  geom_histogram(position='dodge') + # dodge to see bars side by side
+  scale_color_brewer(type = 'div',
+    guide = guide_legend(title = 'Standing',
+    override.aes = list(alpha = 1, size = 2))) + # Setting color scheme
+  ggtitle('BorrowerAPR by Standing') # Plot title
+
+# Using color and fill parameters to color the plot by standing of borrower
+```
+
+There is some trend seen between high APR and being a defaulter from 0.08 to 0.36 there is a direct relation.
+
+## LoanMonthsSinceOrigination vs Standing
+
+```{r echo=FALSE,warning=FALSE}
+ggplot(aes(x=LoanMonthsSinceOrigination,color = Standing,fill=Standing),
+       data = plds) + geom_histogram(position='dodge') +
+  scale_color_brewer(type = 'div', guide = guide_legend(title = 'Standing')) +
+  ggtitle('LoanMonthsSinceOrigination by Standing')
+
+```
+
+ There is a spike around 24 and around 70 months. So I will later check their loan terms to see which loan terms usually go default
+
+## InquiriesLast6Months vs Standing
+
+```{r echo=FALSE,warning=FALSE}
+ggplot(aes(x=InquiriesLast6Months,color = Standing,fill=Standing),data = plds) +
+  geom_histogram(position='dodge') + scale_color_brewer(type = 'div',
+    guide = guide_legend(title = 'Standing', override.aes = 
+                           list(alpha = 1, size = 2))) +
+  ggtitle('InquiriesLast6Months by Standing') + scale_x_log10()
+
+
+```
+
+Most of the defaulters have maximum 1 inquiries in last six months. So will check this later if this has something to do with credit score as well.
+
+## DebtToIncomeRatio vs Standing
+
+
+```{r echo=FALSE,warning=FALSE}
+ggplot(aes(x=DebtToIncomeRatio,color = Standing,fill=Standing),data = plds) +
+  geom_histogram(position='dodge') +
+  scale_color_brewer(type = 'div',
+    guide = guide_legend(title = 'Standing')) +
+  ggtitle('DebtToIncomeRatio by Standing')+
+  scale_x_continuous(limits = c(0,2))
+```
+
+  Similar trend of defaulters and those in good standing but obviously different in counts. 
+
+## IncomeRange vs Standing
+
+```{r echo=FALSE, fig.width=10,fig.height=4,warning=FALSE}
+
+ggplot(aes(x= IncomeRange,color = Standing,fill=Standing),data = plds) + 
+  geom_histogram(stat='count', position= 'dodge') +
+  scale_color_brewer(type = 'div', guide = guide_legend(title = 'Standing')) +
+  ggtitle(' IncomeRange by Standing') 
+
+```
+
+  The $25k to 50k range borrower's have most number of defaulters but this might be due to the fact that this category has majority of borrowers.
+
+## EmploymentStatus VS Standing
+
+```{r echo=FALSE,fig.width=8,fig.height=4,warning=FALSE}
+
+ggplot(aes(x= EmploymentStatus,color = Standing,fill=Standing),data = plds) +
+  geom_histogram(stat='count', position= 'dodge') +
+  scale_color_brewer(type = 'div', guide = guide_legend(title = 'Standing')) +
+  ggtitle(' EmploymentStatus by Standing') +
+  scale_y_log10() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+# Tilting the axis labels using theme function to improve readability and using
+# log scale on y axis
+  
+```
+
+  Employment status vs. standing. All categories seem to be having almost equal distribution of defaulter as compared to non defaulters when log transformed the y axis. Data was skewed towards employed borrowers before. Also, defaulters are almost always less than borrowers in each category. 
+
+## CreditScoreRangeUpper vs  Standing
+
+```{r echo=FALSE,warning=FALSE}
+ggplot(aes(x= CreditScoreRangeUpper,color = Standing,fill=Standing),
+       data = plds) + geom_histogram(binwidth= 40, position= 'dodge') +
+  scale_color_brewer(type = 'div', guide = guide_legend(title = 'Standing')) +
+  ggtitle(' CreditScoreRangeUpper by Standing') 
+
+```
+
+Less defaulters for high credit rating. Most defaulters are in the range 650 - 700 rating.
+
+## BorrowerState vs Standing
+
+ggplot(aes(,
+           y=Investors),data=plds) + geom_point() + coord_flip()
+
+```{r echo=FALSE, fig.width = 6, fig.height = 8}
+ggplot(aes(x=reorder(BorrowerState,BorrowerState, function (x) length(x)),
+           color = Standing,fill=Standing),data = plds) + coord_flip() +
+  geom_bar(stat='count', position = 'dodge') +
+  scale_color_brewer(type = 'div', guide = guide_legend(title = 'Standing')) +
+  ggtitle(' BorrowerState by Standing') 
+
+```
+
+## LoanOriginalAmount by Standing
+```{r echo=FALSE, warning=FALSE}
+
+ggplot(aes(x= LoanOriginalAmount,color = Standing,fill=Standing),data = plds) +
+  geom_bar(stat='count', position = 'dodge', binwidth=700) + 
+  scale_color_brewer(type = 'div', guide = guide_legend(title = 'Standing')) +
+  ggtitle('Loan Original Amount by Standing') 
+
+                                                                                    
+  
+```
+
+Loan amounts of defaulters is almost always less than the others for the same amount.
+
+
+  The distribution was right skewed so logtransformed the y axis. The skewness was due to the high population of CA now it looks more nice. No state has more defaulters as compared to good standings. 
+
+## Exploring other trends in the data by seeing interactions between different variables.
+
+## LP_CustomerPayments vs Investors
+
+```{r echo=FALSE,warning=FALSE}
+ggplot(aes(x=LP_CustomerPayments, y = Investors),data=plds) + 
+  geom_point(alpha=1/20)
+
+```
+
+  There is some relation between these two so the distribution of good and default borrowers will be interesting to see in multivariate analysis.
+
+## CreditScoreRangeUpper vs InquiriesLast6Months
+
+```{r echo=FALSE,warning=FALSE}
+ggplot(aes(x=CreditScoreRangeUpper, y=InquiriesLast6Months),data=plds) +
+  geom_point(alpha=0.5)
+```
+
+Inquiries increase initially from 450 to 550 but then decreases so it is expected that defaulters are in the lower side of the rating and with more inquiries. Will be checked in multivariate section.
+
+## BorrowerState vs Investors
+
+  I was curious to know if investors prefer any states so checking this below:
+
+```{r echo=FALSE,fig.width=8,fig.height=8}
+# Flipping the axis to improve readability
+ggplot(aes(x=reorder(BorrowerState,BorrowerState, function (x) length(x)),
+           y=Investors),data=plds) + geom_point() + coord_flip()
+
+```
+
+ Seeing the relation between investors interest for certain states doesn't show any specific trends.
+
+## Investors vs LoanMonthsSinceOrigination
+
+```{r echo=FALSE,warning=FALSE}
+ggplot(aes(x=ListingCreationDate,y=LoanMonthsSinceOrigination),data=plds) + geom_point()
+
+```
+
+  There seem to some more delinquicy from 2005 to 2010 so will be interesting to see the data for good and default borrowers in multivariate analysis for the same plot. 
+
+## CreditScoreRangeUpper vs Investors
+
+```{r echo=FALSE,warning=FALSE}
+ggplot(aes(x=CreditScoreRangeUpper, y = Investors),
+       data=subset(plds,!is.na(CreditScoreRangeUpper) & Investors > 0 & 
+                     CreditScoreRangeUpper>0)) + geom_point() + xlim(200,900)
+# Using investors greater than zero and credit score greater than zero and 
+#excluding nulls from credit score
+```
+
+  Strong relation seems to be existing between these. Investors seems to be trusting high credit scores.
+
+### IncomeRange vs Investors
+
+
+```{r echo=FALSE,warnings=FALSE,fig.width=9,fig.height=4}
+ggplot(aes(x=IncomeRange, y= Investors),data = plds) + geom_bar(stat="identity")
+
+```
+
+Most investors investing into the employed masses.
+
+## LoanOriginalAmount vs Investors
+
+```{r echo=FALSE,warnings=FALSE,fig.width=9,fig.height=4}
+ggplot(aes(x=LoanOriginalAmount, y= Investors),data = plds) + 
+  geom_point(alpha = 1/10) + xlim(0,quantile(plds$LoanOriginalAmount,0.99))
+## Added alpha transparecy to overcome over plotting.
+```
+
+As expected the more the loan amount the more investors. (Excluding top 1 % loan amount)
+
+## LoanOriginalAmount vs LP_CustomerPayments
+
+```{r echo=FALSE,warnings=FALSE,fig.width=9,fig.height=4}
+
+ggplot(aes(x=LoanOriginalAmount, y= LP_CustomerPayments),data = plds) + 
+  geom_point(alpha=1/12) + xlim(0,quantile(plds$LoanOriginalAmount,0.99))
+## Added alpha transparecy to overcome over plotting.
+```
+
+Higher the loan amount more payments are made by the borrower. (Excluding top 1 % loan amount)
+
+
+
+## Summary of Bivariate plots
+
+ The employed borrowers are mostly the highest in defaulters
+ 
+  Number of investors increase with high credit scores 
+  
+  Strong inverse relation between monthly income and debt to income ratio as expected
+  
+  When analyzing loan months since origination, there was a spike around 24 and after 60 months. So I will later    
+  check their loan terms to see which loan terms usually has most defaulters.
+  
+###  What was the strongest relationship you found?
+  
+  Investors and credit scores
+  
+  The strong relation was between Loan months since origination and listing creation.
+  
+  LP_customerpayments and investors
+  
+  Investors and credit score
+  
+  Income range and investors
+
+# Multivariate Plots Section
+
+# Correlation Analysis
+
+```{r echo=FALSE,warning=FALSE}
+
+ggcorr(plds, label = TRUE, label_size = 3,
+       hjust = 0.8, size = 2.5, color = "black", layout.exp = 2)
+## Using ggpairs to plot correlation values
+```
+
+
+
+Looking at the correlation coefficients of quantitative variables only. There seem to be some relation of 
+investors with lp_customerpayments as well as loan original amount. There is inverse relation between debt to income ratio and monthly income as expected.There is inverse relation between loan original amount and inquiries last 6 months. CreditScoreRangeUpper and InquiriesLast6Months does not seem to have any relation but still I am curious to see it by standing so beginning the analysis with these.
+
+```{r echo=FALSE,warning=FALSE}
+
+ggplot(aes(x=CreditScoreRangeUpper, y=InquiriesLast6Months,color=Standing, 
+           fill=Standing),data=plds) + geom_point(alpha=0.5)
+   #Using alpha transparency to avoid overpotting
+
+```
+
+  As expected more defaulters on lower side of the rating but there are also some on the higher side!
+
+## LoanMonthsSinceOrigination vs Term vs Standing
+
+```{r echo=FALSE,warning=FALSE}
+ggplot(aes(y=LoanMonthsSinceOrigination, x = factor(Term),fill=Standing),
+       data = subset(plds,plds$LoanStatus!="Completed")) + geom_boxplot() 
+ # Excluding completed status to avoid biasness 
+
+```
+
+  Excluding the borrowers who have completed their loans to make the comparison.
+Defaulters as expected spent more months than what they expressed initially to pay off their loans.
+Most defaulters are for the 36  term duration since most loans are also for this term.
+Median for loan months since origination for defaulters of 36 month term is around 70. Which means 50% are below    this and 50% above this. 
+
+  The 60 month duration term doesn't have any borrower exceeding the limit of 60 months. 
+For 12 month term almost all defaulters have exceeded the duration of term.
+Months for defaulters is always high as compared to non defaulters.
+
+## Investors vs LP_CustomerPayments by Standing
+
+```{r echo=FALSE,warning=FALSE}
+ggplot(aes(y=Investors,x=LP_CustomerPayments,color=Standing,fill=Standing),
+       data=subset(plds,!is.na(LP_CustomerPayments) & LP_CustomerPayments > 0 & 
+                     Standing=="Default")) + geom_point(alpha=1/20) + 
+  scale_x_log10(limits= c(quantile(plds$LP_CustomerPayments,0.1), 
+                          quantile(plds$LP_CustomerPayments,0.95))) +
+  ylim(0,500)
+  
+# Using quantile function to include top 95% and exclude bottom 1 %
+                                
+  
+```
+ 
+As shown by the correlation there was some relation between these two. So only looking at defaulted borrowers
+with x axis log transformed and not including bottom 10% LP_customerpayments. So there is some interaction between these two.
+
+
+## StatedMonthlyIncome vs DebtToIncomeRatio by Standing
+
+```{r echo=FALSE,warning=FALSE}
+ggplot(aes(x=StatedMonthlyIncome,y=DebtToIncomeRatio,color = Standing,fill =
+             Standing), data=subset(plds,!is.na(DebtToIncomeRatio) & Standing == 
+                                      "Default")) + geom_point(alpha=1/10) + 
+  xlim(0,20000) 
+
+```
+
+  Only looking at the default borrowers. Most of them are within 0 - 10k range. There are also some with income under 2500 who have high debt to income ratios as expected. As seen from correlation coefficient there is inverse relation between these two which can be expected.
+
+
+## StatedMonthlyIncome vs DebtToIncomeRatio by Standing
+
+```{r echo=FALSE,warning=FALSE,fig.width=12,fig.height=4}
+ggplot(aes(x=IncomeRange,y=DebtToIncomeRatio,fill=Standing),data=plds) + 
+  geom_boxplot() + ylim(0,2)
+   
+
+```
+
+  The average Prosper borrower according to this dataset has 27.60% DTI, although the maximum allowable is 50% as per their website the ratio is below 1 for all income range borrowers but I do see outliers in each income range. 
+
+
+## ListingCreationDate vs LoanMonthsSinceOrigination by Standing
+
+```{r echo=FALSE,warning=FALSE}
+ggplot(aes(x=ListingCreationDate,y=LoanMonthsSinceOrigination,fill=Standing),
+       data=subset(plds,plds$LoanStatus!="Completed")) + geom_boxplot() +
+  ggtitle('ListingCreationDate vs LoanMonthsSinceOrigination by Standing')
+
+```
+
+  Most borrowers that went delinquent were from 2006 - 2008 (not including those who have completed their terms) that is seen by the increased number of months for these years. The skewness again could also be due to the financial crisis period (2008-09). 
+  From 2009 inwards the number of defaulters have almost always conceded more months than those in good standing which could be expected. 
+
+## ListingCreationDate vs LoanCurrentDaysDelinquent by Standing
+
+```{r echo=FALSE,warning=FALSE}
+
+pld$Standing <- ifelse(pld$LoanStatus == 'Cancelled'
+                        | pld$LoanStatus == 'Completed'
+                        | pld$LoanStatus == 'Current'
+                        | pld$LoanStatus == 'FinalPaymentInProgress'
+                        ,'Good','Default')
+ggplot(aes(x=ListingCreationDate,y=LoanCurrentDaysDelinquent,fill=Standing),
+       data=pld) + geom_boxplot()
+```
+
+  Loans created in 2006 - 2008 were delinquent for most of the days. 
+
+## CreditScoreRangeUpper vs Investors by Standing
+
+```{r echo=FALSE,warning=FALSE}
+ggplot(aes(x=CreditScoreRangeUpper, y = Investors,color=Standing),data=plds) + 
+  geom_point() + facet_wrap(~IncomeRange, scales = "free_y") 
+ #Using facet wrap to splot by income range
+```
+
+ There is a direct relation between credit score and number of investors with defaulters being at lower credit rating usually as compared to good standing accounts.
+
+
+## ListingCreationDate vs DebtToIncomeRatio by Standing
+```{r echo=FALSE,fig.width=12,fig.height=4}
+ggplot(aes(x=ListingCreationDate, y = DebtToIncomeRatio,fill=Standing),
+       data=plds) + geom_boxplot() + facet_wrap(~plds$IncomeRange) + ylim(0,1)
+``` 
+
+  Not displayed category does not exist after 2007. There are a large number of outliers above a ratio of 1 so limited analysis to a ratio of 1 only.
+
+## ListingCreationDate vs BorrowerAPR by Standing
+
+```{r echo=FALSE,warning=FALSE, fig.width=12,fig.height=4}
+
+ggplot(aes(x=ListingCreationDate, y = BorrowerAPR,fill=Standing),
+       data=plds) + geom_boxplot() +
+         facet_wrap(~pld$IncomeRange) 
+```
+
+Defaulters have more APR almost always as compared to the others. This is not because they have taken high loan amounts as seen previously in the bivariate analysis section the number of defaulters were almost always less than the good standing borrowers for the same amount range.
+
+Analyzing borrower APR with credit score to see if this has something do with high rates for bad standing borrowers also APR with loan original amount will be checked.
+
+
+```{r echo = FALSE, warning=FALSE}
+
+ggplot(aes(y=BorrowerAPR,x=CreditScoreRangeUpper,color=Standing,fill=Standing),
+       data=plds) + geom_point() 
+
+```
+
+  The rates for defaulters seem to be within 0.3 from 450 to 600 range. They do seem to be on the lower side of the credit score something investors can keep into consideration. 
+
+```{r}
+by(plds$BorrowerAPR,plds$Standing,summary)
+```
+
+
+
+```{r echo = FALSE, warning=FALSE}
+
+ggplot(aes(y=BorrowerAPR,x=LoanOriginalAmount,color=Standing,fill=Standing),
+       data=plds) + geom_point() 
+
+```
+
+
+# Final Plots and Summary
+
+
+### Plot One
+
+## ListingCreationDate vs LoanMonthsSinceOrigination by Standing
+
+```{r echo=FALSE,warning=FALSE}
+ggplot(aes(x=ListingCreationDate,y=LoanMonthsSinceOrigination,fill=Standing),
+       data=subset(plds,plds$LoanStatus!="Completed")) + geom_boxplot() +
+  ggtitle('ListingCreationDate vs LoanMonthsSinceOrigination by Standing')
+
+```
+
+### Description One
+
+  The plot does not include those borrowers who have completed their terms in order to see the current borrowers only as those who have completed their terms will be causing a bias. This plot shows borrowers with default standing had taken most number of months in almost every year. The skewness seen might be due to the financial crisis from 2008 - 09 but the number of defaulters since then has been on the fall. 
+
+
+### Plot Two
+
+## CreditScoreRangeUpper vs Investors by Standing
+
+```{r echo=FALSE,warning=FALSE}
+ggplot(aes(x=CreditScoreRangeUpper, y = Investors,color=Standing),data=plds) + 
+  geom_point() + facet_wrap(~IncomeRange, scales = "free_y") + 
+  ggtitle('CreditScoreRangeUpper Vs. Investors by Standing')
+```
+
+
+### Description Two
+
+  This plot shows the trend of investors on selecting borrowers. There is almost always trust shown by investors above 500 score. Also there are a few outliers in Not Displayed maybe due to the fact that this category only existed until 2007 and after this more transparency was introduced and borrowers were made to declare their income. 
+
+
+### Plot Three
+## ListingCreationDate vs BorrowerAPR by Standing
+
+```{r echo=FALSE,warning=FALSE, fig.width=12,fig.height=4}
+
+ggplot(aes(x=ListingCreationDate, y = BorrowerAPR,fill=Standing),
+       data=plds) + geom_boxplot() +
+         facet_wrap(~pld$IncomeRange) #Using facet wrap to splot by income range
+```
+
+### Description Three
+
+  Defaulters have more APR almost always as compared to the others. This is not because they have taken high loan amounts as seen previously in the bivariate analysis section the number of defaulters were almost always less than the good standing borrowers for the same amount range.
+  Analyzing borrower APR with credit score also did not show any unexpected trends that could be associated with this.Also, there wasn't any specific relation between loan original amount and APR for the same loan amount. 
+------
+
+# Reflection
+
+ The dataset contained around 100,000 observations and 81 variables. Given the original range of keeping the analysis restricted to 10-15 variables was difficult since it was hard to decide which variables to keep. I tried to keep the variables within the prescribed range but some features required more analysis to come to any conclusion.
+
+  There were few financial terms that were hard to understand so first some reserach was conducted to get familiar with them.
+
+  Comparing the default borrowers with those in good standing revealed a lot of insights about what factors actually contribute towards delinquicy such as BorrowerAPR, Credit Score and inquiries to name a few. Strict policies could further be set up in order to further reduce the number of defaulters. 
+
+  The dataset was full of interesting information such as the criteria followed by investors to lend to borrowers with high credit scores (500  ). There was a positive relation between loan original amount and number of investors showing more investors contribute towards more loan amount not causing a burden in case if only was lending.Also, payments made by customers including all service charges showed positive relation with the number of investors. 
+
+  There is still a lot room for further analysis such as seeing the categories of the purpose loan was taken and average earning per state could be included as a feature. 
+
+# References
+
+https://prosper.zendesk.com/hc/en-us/articles/210013963
+
+https://www.investopedia.com/terms/
+
+https://stats.stackexchange.com/questions/11406/boxplot-with-respect-to-two-factors-using-ggplot2-in-r
+
+https://www.orchardplatform.com/blog/2014519lender-yield-prosper/
+
+
+
